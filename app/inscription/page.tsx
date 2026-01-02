@@ -68,14 +68,18 @@ function RegisterForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
-
+        
         try {
             const response = await fetch('/api/waitlist', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    source: source,
+                    platform: 'facebook',
+                }),
             });
 
             const data = await response.json();

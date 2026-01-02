@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     console.log("🟢 Body reçu:", body);
-    const { firstname, lastname, email, phone, company, size, job, customJob, pain } = body;
+    const { firstname, lastname, email, phone, company, size, job, customJob, pain, source, platform } = body;
 
     // Validation des champs requis
     if (!firstname || !lastname || !email || !phone || !company || !size || !job || !pain) {
@@ -85,6 +85,8 @@ export async function POST(request: NextRequest) {
       'Effectif': size,
       'Métier': job === 'autre' ? customJob.trim() : job,
       'Pertes annuelles': pain,
+      'Source': source || 'direct',
+      'Plateforme': platform || 'unknown',
       'Date': new Date().toISOString(),
     };
 
