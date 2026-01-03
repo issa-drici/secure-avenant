@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ShieldCheck, Check, ArrowRight, Loader2 } from 'lucide-react';
+import FacebookViewContent from '../components/FacebookViewContent';
 
 function RegisterForm() {
     const searchParams = useSearchParams();
@@ -69,6 +70,20 @@ function RegisterForm() {
         e.preventDefault();
         setIsLoading(true);
         
+        // Récupérer le consentement depuis localStorage
+        const getCookieConsent = () => {
+            try {
+                const stored = localStorage.getItem('cookie-consent');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    return parsed.advertising === true;
+                }
+            } catch {
+                return false;
+            }
+            return false;
+        };
+        
         try {
             const response = await fetch('/api/waitlist', {
                 method: 'POST',
@@ -79,6 +94,9 @@ function RegisterForm() {
                     ...formData,
                     source: source,
                     platform: 'facebook',
+                    cookieConsent: {
+                        advertising: getCookieConsent(),
+                    },
                 }),
             });
 
@@ -332,6 +350,7 @@ function RegisterForm() {
 export default function Inscription() {
     return (
         <main className="min-h-screen bg-slate-50 flex">
+            <FacebookViewContent contentName="Page Inscription SecureAvenant" />
             {/* Left Side - Visual / Testimonials */}
             <div className="hidden lg:flex w-1/2 bg-slate-900 relative items-center justify-center p-12 overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800"></div>

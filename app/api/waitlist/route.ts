@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   console.log("🔵 Route API /api/waitlist appelée");
   try {
     const body = await request.json();
     console.log("🟢 Body reçu:", body);
-    const { firstname, lastname, email, phone, company, size, job, customJob, pain, source, platform } = body;
+    const { firstname, lastname, email, phone, company, size, job, customJob, pain, source, platform, cookieConsent } = body;
 
     // Validation des champs requis
     if (!firstname || !lastname || !email || !phone || !company || !size || !job || !pain) {
@@ -116,6 +118,155 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await airtableResponse.json();
+
+    // Envoi de l'événement Facebook Conversions API
+    // Vérifier le consentement RGPD avant d'envoyer (sauf si FORCE_FACEBOOK_TRACKING est activé)
+    const forceTracking = process.env.FORCE_FACEBOOK_TRACKING === 'true';
+    const hasAdvertisingConsent = forceTracking || cookieConsent?.advertising === true;
+    
+    try {
+      const facebookPixelId = process.env.FACEBOOK_PIXEL_ID;
+      const facebookAccessToken = process.env.FACEBOOK_ACCESS_TOKEN;
+      const facebookApiVersion = process.env.FACEBOOK_API_VERSION || 'v21.0';
+
+      if (facebookPixelId && facebookAccessToken && hasAdvertisingConsent) {
+        // Préparer l'événement CompleteRegistration
+        const eventTime = Math.floor(Date.now() / 1000);
+        const userAgent = request.headers.get('user-agent') || '';
+        const origin = request.headers.get('origin') || '';
+        const referer = request.headers.get('referer') || '';
+        const eventSourceUrl = referer || origin || 'https://secure-avenant.com/inscription';
+        
+        // Générer un event_id unique pour éviter les doublons
+        const eventId = randomUUID();
+
+        // Hasher les données PII en SHA256 (requis par Facebook)
+        const hashEmail = crypto.createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+        const hashPhone = crypto.createHash('sha256').update(formattedPhone.replace(/\D/g, '')).digest('hex');
+        const hashFirstname = crypto.createHash('sha256').update(firstname.trim().toLowerCase()).digest('hex');
+        const hashLastname = crypto.createHash('sha256').update(lastname.trim().toLowerCase()).digest('hex');
+
+        const facebookEvent = {
+          data: [
+            {
+              event_name: 'CompleteRegistration',
+              event_time: eventTime,
+              event_id: eventId,
+              action_source: 'website',
+              event_source_url: eventSourceUrl,
+              user_data: {
+                em: [hashEmail],
+                ph: [hashPhone],
+                fn: [hashFirstname],
+                ln: [hashLastname],
+                client_user_agent: userAgent,
+              },
+              custom_data: {
+                content_name: 'Inscription SecureAvenant',
+                source: source || 'direct',
+                platform: platform || 'facebook',
+              },
+            },
+          ],
+        };
+
+        // Fonction pour envoyer avec retry
+        const sendToFacebookWithRetry = async (retries = 2): Promise<boolean> => {
+          for (let attempt = 0; attempt <= retries; attempt++) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 secondes timeout
+
+            try {
+              const facebookResponse = await fetch(
+                `https://graph.facebook.com/${facebookApiVersion}/${facebookPixelId}/events?access_token=${facebookAccessToken}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(facebookEvent),
+                  signal: controller.signal,
+                }
+              );
+
+              clearTimeout(timeoutId);
+
+              if (facebookResponse.ok) {
+                const facebookData = await facebookResponse.json();
+                console.log('✅ Événement Facebook CompleteRegistration envoyé avec succès:', {
+                  event_id: eventId,
+                  events_received: facebookData.events_received,
+                  messages: facebookData.messages,
+                  attempt: attempt + 1,
+                });
+                return true;
+              } else {
+                const facebookError = await facebookResponse.json();
+                // Ne pas retry pour les erreurs 4xx (erreurs client)
+                if (facebookResponse.status >= 400 && facebookResponse.status < 500) {
+                  console.error('❌ Erreur client Facebook (pas de retry):', {
+                    status: facebookResponse.status,
+                    error: facebookError,
+                    event_id: eventId,
+                  });
+                  return false;
+                }
+                // Retry pour les erreurs 5xx (erreurs serveur)
+                if (attempt < retries) {
+                  console.warn(`⚠️ Tentative ${attempt + 1}/${retries + 1} échouée, retry...`, {
+                    status: facebookResponse.status,
+                    event_id: eventId,
+                  });
+                  await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Backoff exponentiel
+                  continue;
+                }
+                console.error('❌ Erreur Facebook après tous les retries:', {
+                  status: facebookResponse.status,
+                  error: facebookError,
+                  event_id: eventId,
+                });
+                return false;
+              }
+            } catch (fetchError) {
+              clearTimeout(timeoutId);
+              if (attempt < retries) {
+                console.warn(`⚠️ Erreur réseau tentative ${attempt + 1}/${retries + 1}, retry...`, {
+                  error: fetchError instanceof Error ? fetchError.message : 'Unknown error',
+                  event_id: eventId,
+                });
+                await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                continue;
+              }
+              if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+                console.error('⏱️ Timeout lors de l\'envoi à Facebook après tous les retries', {
+                  event_id: eventId,
+                  event_name: 'CompleteRegistration',
+                });
+              } else {
+                console.error('❌ Erreur réseau après tous les retries:', {
+                  error: fetchError,
+                  event_id: eventId,
+                  event_name: 'CompleteRegistration',
+                });
+              }
+              return false;
+            }
+          }
+          return false;
+        };
+
+        // Envoyer avec retry (2 tentatives supplémentaires = 3 au total)
+        await sendToFacebookWithRetry(2);
+      } else if (!hasAdvertisingConsent) {
+        console.log('⚠️ Événement Facebook non envoyé : consentement publicitaire non donné');
+      } else if (forceTracking) {
+        console.log('🔓 Mode FORCE_FACEBOOK_TRACKING activé : événements envoyés sans vérification du consentement');
+      }
+    } catch (facebookError) {
+      console.error('Erreur lors de l\'envoi à Facebook:', facebookError);
+      // On continue même si Facebook échoue, l'enregistrement Airtable a réussi
+    }
+
     return NextResponse.json({ success: true, id: data.id }, { status: 200 });
   } catch (error) {
     console.error('Erreur serveur:', error);

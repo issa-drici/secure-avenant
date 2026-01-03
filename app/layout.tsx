@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import Navbar from "./components/Navbar";
+import CookieBanner from "./components/CookieBanner";
+import CookieManager from "./components/CookieManager";
 import "./globals.css";
 
 const inter = Inter({
@@ -30,6 +32,8 @@ export default function RootLayout({
       >
         <Navbar />
         {children}
+        <CookieBanner />
+        <CookieManager />
       </body>
     </html>
   );
