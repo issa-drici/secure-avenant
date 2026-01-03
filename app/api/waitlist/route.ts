@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
       const facebookPixelId = process.env.FACEBOOK_PIXEL_ID;
       const facebookAccessToken = process.env.FACEBOOK_ACCESS_TOKEN;
       const facebookApiVersion = process.env.FACEBOOK_API_VERSION || 'v21.0';
+      const testEventCode = process.env.FACEBOOK_TEST_EVENT_CODE;
 
       if (facebookPixelId && facebookAccessToken && hasAdvertisingConsent) {
         // Préparer l'événement CompleteRegistration
@@ -146,7 +147,18 @@ export async function POST(request: NextRequest) {
         const hashFirstname = crypto.createHash('sha256').update(firstname.trim().toLowerCase()).digest('hex');
         const hashLastname = crypto.createHash('sha256').update(lastname.trim().toLowerCase()).digest('hex');
 
-        const facebookEvent = {
+        const facebookEvent: {
+          data: Array<{
+            event_name: string;
+            event_time: number;
+            event_id: string;
+            action_source: string;
+            event_source_url: string;
+            user_data: Record<string, string[] | string>;
+            custom_data: Record<string, string>;
+          }>;
+          test_event_code?: string;
+        } = {
           data: [
             {
               event_name: 'CompleteRegistration',
@@ -169,6 +181,12 @@ export async function POST(request: NextRequest) {
             },
           ],
         };
+
+        // Ajouter test_event_code si défini (pour le mode test dans Facebook Events Manager)
+        if (testEventCode) {
+          facebookEvent.test_event_code = testEventCode;
+          console.log('🧪 Mode TEST activé avec test_event_code:', testEventCode);
+        }
 
         // Fonction pour envoyer avec retry
         const sendToFacebookWithRetry = async (retries = 2): Promise<boolean> => {

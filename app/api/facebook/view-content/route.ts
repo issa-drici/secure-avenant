@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     const facebookAccessToken = process.env.FACEBOOK_ACCESS_TOKEN;
     const facebookApiVersion = process.env.FACEBOOK_API_VERSION || 'v21.0';
     const forceTracking = process.env.FORCE_FACEBOOK_TRACKING === 'true';
+    const testEventCode = process.env.FACEBOOK_TEST_EVENT_CODE;
 
     if (!facebookPixelId || !facebookAccessToken) {
       return NextResponse.json(
@@ -54,7 +55,18 @@ export async function POST(request: NextRequest) {
     const fbp = cookies.match(/fbp=([^;]+)/)?.[1];
     const fbc = cookies.match(/fbc=([^;]+)/)?.[1];
 
-    const facebookEvent = {
+    const facebookEvent: {
+      data: Array<{
+        event_name: string;
+        event_time: number;
+        event_id: string;
+        action_source: string;
+        event_source_url: string;
+        user_data: Record<string, string | undefined>;
+        custom_data: Record<string, string>;
+      }>;
+      test_event_code?: string;
+    } = {
       data: [
         {
           event_name: 'ViewContent',
@@ -75,6 +87,12 @@ export async function POST(request: NextRequest) {
         },
       ],
     };
+
+    // Ajouter test_event_code si défini (pour le mode test dans Facebook Events Manager)
+    if (testEventCode) {
+      facebookEvent.test_event_code = testEventCode;
+      console.log('🧪 Mode TEST activé avec test_event_code:', testEventCode);
+    }
 
     // Envoyer l'événement à Facebook avec timeout
     const controller = new AbortController();
