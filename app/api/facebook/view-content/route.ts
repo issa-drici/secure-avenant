@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +15,7 @@ export async function POST(request: NextRequest) {
       body = JSON.parse(text);
     }
     
-    const { url, content_name, event_id } = body;
+    const { url, content_name, event_id, content_category } = body;
 
     const facebookPixelId = process.env.FACEBOOK_PIXEL_ID;
     const facebookAccessToken = process.env.FACEBOOK_ACCESS_TOKEN;
@@ -82,7 +81,7 @@ export async function POST(request: NextRequest) {
           },
           custom_data: {
             content_name: content_name || 'Page SecureAvenant',
-            content_category: 'Inscription',
+            content_category: content_category || (content_name?.includes('Inscription') ? 'Inscription' : 'Landing Page'),
           },
         },
       ],

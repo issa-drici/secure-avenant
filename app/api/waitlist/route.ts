@@ -138,6 +138,12 @@ export async function POST(request: NextRequest) {
         const referer = request.headers.get('referer') || '';
         const eventSourceUrl = referer || origin || 'https://secure-avenant.com/inscription';
         
+        // Récupérer fbp et fbc depuis les cookies si disponibles (pour améliorer l'attribution)
+        // fbc contient le fbclid si l'utilisateur vient d'une publicité Facebook
+        const cookies = request.headers.get('cookie') || '';
+        const fbp = cookies.match(/fbp=([^;]+)/)?.[1];
+        const fbc = cookies.match(/fbc=([^;]+)/)?.[1];
+        
         // Générer un event_id unique pour éviter les doublons
         const eventId = randomUUID();
 
@@ -172,6 +178,8 @@ export async function POST(request: NextRequest) {
                 fn: [hashFirstname],
                 ln: [hashLastname],
                 client_user_agent: userAgent,
+                ...(fbp && { fbp }),
+                ...(fbc && { fbc }), // fbc contient le fbclid si l'utilisateur vient d'une pub Facebook
               },
               custom_data: {
                 content_name: 'Inscription SecureAvenant',

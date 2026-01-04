@@ -12,7 +12,7 @@ import FacebookViewContent from "./components/FacebookViewContent";
 export default function Home() {
   return (
     <main className="min-h-screen bg-white text-slate-900 selection:bg-primary/20 selection:text-slate-900">
-      <FacebookViewContent contentName="Landing Page SecureAvenant" />
+      <FacebookViewContent contentName="Landing Page SecureAvenant" contentCategory="Landing Page" />
       <Hero />
       <Problem />
       <Solution />

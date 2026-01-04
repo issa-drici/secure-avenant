@@ -12,7 +12,13 @@ function generateUUID(): string {
   });
 }
 
-export default function FacebookViewContent({ contentName }: { contentName: string }) {
+export default function FacebookViewContent({ 
+  contentName, 
+  contentCategory 
+}: { 
+  contentName: string;
+  contentCategory?: string;
+}) {
   const { hasConsent, isLoading } = useCookieConsent();
 
   useEffect(() => {
@@ -34,6 +40,7 @@ export default function FacebookViewContent({ contentName }: { contentName: stri
       const payload = JSON.stringify({
         url: window.location.href,
         content_name: contentName,
+        content_category: contentCategory,
         event_id: eventId,
       });
 

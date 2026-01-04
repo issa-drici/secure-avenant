@@ -350,7 +350,7 @@ function RegisterForm() {
 export default function Inscription() {
     return (
         <main className="min-h-screen bg-slate-50 flex">
-            <FacebookViewContent contentName="Page Inscription SecureAvenant" />
+            <FacebookViewContent contentName="Page Inscription SecureAvenant" contentCategory="Inscription" />
             {/* Left Side - Visual / Testimonials */}
             <div className="hidden lg:flex w-1/2 bg-slate-900 relative items-center justify-center p-12 overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800"></div>
